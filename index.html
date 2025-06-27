@@ -1,124 +1,86 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
+  <title>Barang Scanner & Pencarian</title>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Scan Produk Minimart</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
   <style>
-    body { font-family: Arial; text-align: center; background: #f4f4f4; padding: 20px; }
-    #scanner-container { width: 100%; max-width: 400px; margin: auto; }
-    video { width: 100%; height: auto; }
-    input[type="text"] { padding: 10px; width: 250px; margin: 10px; }
-    button { padding: 10px 20px; }
-    #result { margin-top: 20px; font-size: 1.2em; }
+    body { font-family: Arial; padding: 20px; background: #f9f9f9; }
+    input, button { padding: 10px; margin: 10px 0; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    #reader { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h2>Scanner Produk Minimart</h2>
-  <div id="scanner-container"></div>
-  <p>Atau masukkan kode SKU:</p>
-  <input type="text" id="manualInput" placeholder="Masukkan SKU...">
-  <button onclick="handleManualInput()">Cari</button>
-  <div id="result"></div>
+  <h2>Scan Barcode / Cari Barang</h2>
+  <input type="text" id="searchInput" placeholder="Scan atau ketik ID/Nama Produk..." />
+  <button onclick="search()">Cari</button>
 
+  <div id="reader" style="width:300px;"></div>
+
+  <table id="dataTable">
+    <thead>
+      <tr><th>ID</th><th>Produk</th><th>Harga Jual</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <script>
-    const SHEET_ID = "1UgT68VSYfc0dDUpaeyNzVqAIxGTi2txJ9neBhr1qy2w";
-    const SHEET_NAME = "Barang";
-    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+    let dataList = [];
 
-    let productData = [];
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/1UgT68VSYfc0dDUpaeyNzVqAIxGTi2txJ9neBhr1qy2w/gviz/tq?tqx=out:csv&sheet=Barang";
 
-    // Fetch data dari Google Sheet
-    fetch(SHEET_URL)
-      .then(res => res.text())
-      .then(dataText => {
-        const json = JSON.parse(dataText.substr(47).slice(0, -2));
-        const rows = json.table.rows;
-        productData = rows.map(row => ({
-          no: row.c[0].v,
-          sku: row.c[1].v.toString(),
-          produk: row.c[2].v,
-          harga: row.c[3].v
-        }));
+    async function loadData() {
+      const res = await fetch(CSV_URL);
+      const text = await res.text();
+      const rows = text.trim().split("\n").map(r => r.split(","));
+      const headers = rows.shift(); // Buang baris header
+
+      dataList = rows.map(r => ({
+        ID: r[1],
+        Produk: r[2],
+        Harga: r[3]
+      }));
+
+      showTable(dataList);
+    }
+
+    function showTable(data) {
+      const tbody = document.querySelector("#dataTable tbody");
+      tbody.innerHTML = "";
+      data.forEach(item => {
+        const row = `<tr><td>${item.ID}</td><td>${item.Produk}</td><td>${item.Harga}</td></tr>`;
+        tbody.innerHTML += row;
       });
-
-    function showResult(data, scannedSKU) {
-      const resultDiv = document.getElementById("result");
-      if (data) {
-        resultDiv.innerHTML = `<strong>Ditemukan:</strong><br>Produk: ${data.produk}<br>SKU: ${data.sku}<br>Harga: Rp ${data.harga}`;
-      } else {
-        // Cari SKU mirip
-        const closest = findClosestSKU(scannedSKU);
-        if (closest) {
-          resultDiv.innerHTML = `<strong>Tidak ditemukan.</strong><br>Kemungkinan maksudmu: <br>Produk: ${closest.produk}<br>SKU: ${closest.sku}<br>Harga: Rp ${closest.harga}`;
-        } else {
-          resultDiv.innerHTML = "Data tidak ditemukan dan tidak ada yang mirip.";
-        }
-      }
     }
 
-    function findClosestSKU(inputSKU) {
-      let minDiff = Infinity;
-      let closest = null;
-      for (const item of productData) {
-        let diff = levenshteinDistance(item.sku, inputSKU);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closest = item;
-        }
-      }
-      return closest;
-    }
-
-    function levenshteinDistance(a, b) {
-      const matrix = Array(a.length + 1).fill(null).map(() =>
-        Array(b.length + 1).fill(null)
-      );
-      for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
-      for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
-      for (let i = 1; i <= a.length; i++) {
-        for (let j = 1; j <= b.length; j++) {
-          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j - 1] + cost
-          );
-        }
-      }
-      return matrix[a.length][b.length];
-    }
-
-    function handleManualInput() {
-      const sku = document.getElementById("manualInput").value.trim();
-      const found = productData.find(item => item.sku === sku);
-      showResult(found, sku);
-    }
-
-    // Jalankan scanner dengan QuaggaJS
-    Quagga.init({
-      inputStream: {
-        name: "Live",
-        type: "LiveStream",
-        target: document.querySelector('#scanner-container')
-      },
-      decoder: {
-        readers: ["ean_reader", "ean_8_reader", "code_128_reader"]
-      }
-    }, function (err) {
-      if (err) {
-        console.error(err);
+    function search() {
+      const query = document.getElementById("searchInput").value.trim();
+      if (!query) {
+        showTable(dataList);
         return;
       }
-      Quagga.start();
-    });
 
-    Quagga.onDetected((data) => {
-      const code = data.codeResult.code;
-      const found = productData.find(item => item.sku === code);
-      showResult(found, code);
-    });
+      const fuse = new Fuse(dataList, {
+        keys: ["ID", "Produk"],
+        threshold: 0.4,
+      });
+
+      const results = fuse.search(query).map(r => r.item);
+      showTable(results);
+    }
+
+    // Barcode scanner
+    function onScanSuccess(decodedText, decodedResult) {
+      document.getElementById("searchInput").value = decodedText;
+      search();
+    }
+
+    new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(onScanSuccess);
+
+    window.onload = loadData;
   </script>
 </body>
 </html>
