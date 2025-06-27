@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scan Produk Minimart</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <style>
+    body { font-family: Arial; text-align: center; background: #f4f4f4; padding: 20px; }
+    #scanner-container { width: 100%; max-width: 400px; margin: auto; }
+    video { width: 100%; height: auto; }
+    input[type="text"] { padding: 10px; width: 250px; margin: 10px; }
+    button { padding: 10px 20px; }
+    #result { margin-top: 20px; font-size: 1.2em; }
+  </style>
+</head>
+<body>
+  <h2>Scanner Produk Minimart</h2>
+  <div id="scanner-container"></div>
+  <p>Atau masukkan kode SKU:</p>
+  <input type="text" id="manualInput" placeholder="Masukkan SKU...">
+  <button onclick="handleManualInput()">Cari</button>
+  <div id="result"></div>
+
+  <script>
+    const SHEET_ID = "1UgT68VSYfc0dDUpaeyNzVqAIxGTi2txJ9neBhr1qy2w";
+    const SHEET_NAME = "Barang";
+    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+
+    let productData = [];
+
+    // Fetch data dari Google Sheet
+    fetch(SHEET_URL)
+      .then(res => res.text())
+      .then(dataText => {
+        const json = JSON.parse(dataText.substr(47).slice(0, -2));
+        const rows = json.table.rows;
+        productData = rows.map(row => ({
+          no: row.c[0].v,
+          sku: row.c[1].v.toString(),
+          produk: row.c[2].v,
+          harga: row.c[3].v
+        }));
+      });
+
+    function showResult(data, scannedSKU) {
+      const resultDiv = document.getElementById("result");
+      if (data) {
+        resultDiv.innerHTML = `<strong>Ditemukan:</strong><br>Produk: ${data.produk}<br>SKU: ${data.sku}<br>Harga: Rp ${data.harga}`;
+      } else {
+        // Cari SKU mirip
+        const closest = findClosestSKU(scannedSKU);
+        if (closest) {
+          resultDiv.innerHTML = `<strong>Tidak ditemukan.</strong><br>Kemungkinan maksudmu: <br>Produk: ${closest.produk}<br>SKU: ${closest.sku}<br>Harga: Rp ${closest.harga}`;
+        } else {
+          resultDiv.innerHTML = "Data tidak ditemukan dan tidak ada yang mirip.";
+        }
+      }
+    }
+
+    function findClosestSKU(inputSKU) {
+      let minDiff = Infinity;
+      let closest = null;
+      for (const item of productData) {
+        let diff = levenshteinDistance(item.sku, inputSKU);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = item;
+        }
+      }
+      return closest;
+    }
+
+    function levenshteinDistance(a, b) {
+      const matrix = Array(a.length + 1).fill(null).map(() =>
+        Array(b.length + 1).fill(null)
+      );
+      for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+      for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j - 1] + cost
+          );
+        }
+      }
+      return matrix[a.length][b.length];
+    }
+
+    function handleManualInput() {
+      const sku = document.getElementById("manualInput").value.trim();
+      const found = productData.find(item => item.sku === sku);
+      showResult(found, sku);
+    }
+
+    // Jalankan scanner dengan QuaggaJS
+    Quagga.init({
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: document.querySelector('#scanner-container')
+      },
+      decoder: {
+        readers: ["ean_reader", "ean_8_reader", "code_128_reader"]
+      }
+    }, function (err) {
+      if (err) {
+        console.error(err);
+        return;
+      }
+      Quagga.start();
+    });
+
+    Quagga.onDetected((data) => {
+      const code = data.codeResult.code;
+      const found = productData.find(item => item.sku === code);
+      showResult(found, code);
+    });
+  </script>
+</body>
+</html>
