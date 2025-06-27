@@ -4,12 +4,13 @@
   <title>Barang Scanner & Pencarian</title>
   <meta charset="UTF-8" />
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body { font-family: Arial; padding: 20px; background: #f9f9f9; }
     input, button { padding: 10px; margin: 10px 0; width: 100%; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    #reader { margin-top: 20px; }
+    #reader { margin-top: 20px; width: 100%; max-width: 400px; }
   </style>
 </head>
 <body>
@@ -17,7 +18,7 @@
   <input type="text" id="searchInput" placeholder="Scan atau ketik ID/Nama Produk..." />
   <button onclick="search()">Cari</button>
 
-  <div id="reader" style="width:300px;"></div>
+  <div id="reader"></div>
 
   <table id="dataTable">
     <thead>
@@ -26,7 +27,6 @@
     <tbody></tbody>
   </table>
 
-  <script src="https://unpkg.com/html5-qrcode"></script>
   <script>
     let dataList = [];
 
@@ -36,7 +36,7 @@
       const res = await fetch(CSV_URL);
       const text = await res.text();
       const rows = text.trim().split("\n").map(r => r.split(","));
-      const headers = rows.shift(); // Buang baris header
+      rows.shift(); // Hapus header
 
       dataList = rows.map(r => ({
         ID: r[1],
@@ -72,13 +72,30 @@
       showTable(results);
     }
 
-    // Barcode scanner
     function onScanSuccess(decodedText, decodedResult) {
       document.getElementById("searchInput").value = decodedText;
       search();
     }
 
-    new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(onScanSuccess);
+    // Pilih kamera belakang jika tersedia
+    Html5Qrcode.getCameras().then(cameras => {
+      if (cameras && cameras.length) {
+        const backCam = cameras.find(cam =>
+          cam.label.toLowerCase().includes("back") || cam.label.toLowerCase().includes("environment")
+        ) || cameras[0];
+
+        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+          { deviceId: { exact: backCam.id } },
+          { fps: 10, qrbox: 250 },
+          onScanSuccess
+        );
+      } else {
+        alert("Tidak ada kamera yang tersedia.");
+      }
+    }).catch(err => {
+      console.error("Gagal mengakses kamera:", err);
+    });
 
     window.onload = loadData;
   </script>
