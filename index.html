@@ -38,10 +38,15 @@
       const rows = text.trim().split("\n").map(r => r.split(","));
       rows.shift(); // Hapus header
 
+      // Bersihkan tanda kutip
+      function clean(val) {
+        return val.replace(/^"|"$/g, '').trim();
+      }
+
       dataList = rows.map(r => ({
-        ID: r[1],
-        Produk: r[2],
-        Harga: r[3]
+        ID: clean(r[1]),
+        Produk: clean(r[2]),
+        Harga: clean(r[3])
       }));
 
       showTable(dataList);
@@ -77,7 +82,7 @@
       search();
     }
 
-    // Pilih kamera belakang jika tersedia
+    // Kamera belakang otomatis
     Html5Qrcode.getCameras().then(cameras => {
       if (cameras && cameras.length) {
         const backCam = cameras.find(cam =>
