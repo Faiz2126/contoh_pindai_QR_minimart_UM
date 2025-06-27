@@ -11,6 +11,20 @@
     table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     #reader { margin-top: 20px; width: 100%; max-width: 400px; }
+
+    /* ✨ Animasi Slide */
+    .slide-in {
+      animation: slideIn 0.5s ease forwards;
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+
+    @keyframes slideIn {
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
   </style>
 </head>
 <body>
@@ -38,7 +52,6 @@
       const rows = text.trim().split("\n").map(r => r.split(","));
       rows.shift(); // Hapus header
 
-      // Bersihkan tanda kutip
       function clean(val) {
         return val.replace(/^"|"$/g, '').trim();
       }
@@ -55,9 +68,18 @@
     function showTable(data) {
       const tbody = document.querySelector("#dataTable tbody");
       tbody.innerHTML = "";
-      data.forEach(item => {
-        const row = `<tr><td>${item.ID}</td><td>${item.Produk}</td><td>${item.Harga}</td></tr>`;
-        tbody.innerHTML += row;
+
+      data.forEach((item, index) => {
+        const row = document.createElement("tr");
+        row.classList.add("slide-in");
+        row.style.animationDelay = `${index * 0.05}s`; // efek slide bertahap
+
+        row.innerHTML = `
+          <td>${item.ID}</td>
+          <td>${item.Produk}</td>
+          <td>${item.Harga}</td>
+        `;
+        tbody.appendChild(row);
       });
     }
 
